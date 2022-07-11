@@ -43,4 +43,15 @@ func main() {
 		fmt.Printf("Pod Name:%s\n", pod.Name)
 	}
 
+	// 5. get all the deployments from the default namespace
+	deployments, err := clientset.AppsV1().Deployments("default").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println("deployments from the default namespace")
+	for _, deploy := range deployments.Items {
+		fmt.Printf("Deployment Name:%s\n", deploy.Name)
+	}
+
 }

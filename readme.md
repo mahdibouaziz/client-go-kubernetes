@@ -39,7 +39,7 @@ Contains common code that can be used while developing any K8s API
 
 for example, when we try to list all the pods, we can specify some kind of filter with the help of apimachinery
 
-# DEMO: Writing an app to get all the pods from the default namespace
+# DEMO: Writing an app (outside the cluster) to get all the pods from the default namespace 
 
 we need to initialize a Go project:
 
@@ -96,3 +96,86 @@ this is called a clientset because it is **set of clients** that can be used to 
 		fmt.Printf("Pod Name:%s\n", pod.Name)
 	}
 ```
+
+the full code:
+
+```go
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+)
+
+func main() {
+	// 1.
+	// this program is expecting a flag named 'kubeconfig'
+	// and if the value is not provided it will get a default value (the second argument)
+	kubeconfig := flag.String("kubeconfig", filepath.Join(os.Getenv("HOME"), ".kube", "config"), "Location to your kubeconfig file")
+	flag.Parse()
+	// fmt.Printf("%s\n", *kubeconfig)
+
+	// 2. build a valid config from the *kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// 3. create a clientset from the config
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// 4. get all the pods from the default namespace
+	pods, err := clientset.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println("pods from the default namespace")
+	for _, pod := range pods.Items {
+		fmt.Printf("Pod Name:%s\n", pod.Name)
+	}
+
+}
+
+```
+
+## get all the deployments from the default namespace
+ 
+we just use the `clientset` and go to the right `GroupVersion` (which is `AppV1` in the case of a deployment)
+
+ ```go
+    deployments, err := clientset.AppsV1().Deployments("default").List(context.TODO(), metav1.ListOptions{})
+    if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println("deployments from the default namespace")
+	for _, deploy := range deployments.Items {
+		fmt.Printf("Deployment Name:%s\n", deploy.Name)
+	}
+ ```
+
+# Summary
+
+- to interact with k8s api server we will have to use `clientset`.
+- this is how we can query/interact with k8s resources: `clientset.GroupVersion().Resources(namespace).Verb()`
+
+examples:
+
+A Pod resource, it's part of `Core` **API group** and `V1` **version** ==> `clientset.corev1().Pods("namespace").List(....)`
+
+A Deployments, it's part of `Apps` **API group** and `V1` **version** ==> `clientset.AppsV1().Deployments(namespace).List(....)`
+
+you can use this command to get the API group and version of the ressource you're looking for 
+
+`kubectl api-resources`
