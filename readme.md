@@ -179,3 +179,121 @@ A Deployments, it's part of `Apps` **API group** and `V1` **version** ==> `clien
 you can use this command to get the API group and version of the ressource you're looking for 
 
 `kubectl api-resources`
+
+
+# DEMO: Writing an app (inside the cluster)
+
+This example shows you how to configure a client with client-go to authenticate to the Kubernetes API from an application running inside the Kubernetes cluster.
+
+client-go uses the **Service Account token** mounted inside the Pod at the `/var/run/secrets/kubernetes.io/serviceaccount` path when the `rest.InClusterConfig()` is used.
+
+we need to change our previous code to use the `rest.InClusterConfig()`
+
+to do that we just need to import `"k8s.io/client-go/rest"`
+
+and then 
+
+```go
+    config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+```
+
+and the rest of the code is the same
+
+## Full code
+```go
+    package main
+
+import (
+	"context"
+	"fmt"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+)
+
+func main() {
+	
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// 3. create a clientset from the config
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// 4. get all the pods from the default namespace
+	pods, err := clientset.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println("pods from the default namespace")
+	for _, pod := range pods.Items {
+		fmt.Printf("Pod Name:%s\n", pod.Name)
+	}
+
+	// 5. get all the deployments from the default namespace
+	deployments, err := clientset.AppsV1().Deployments("default").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Println("deployments from the default namespace")
+	for _, deploy := range deployments.Items {
+		fmt.Printf("Deployment Name:%s\n", deploy.Name)
+	}
+
+}
+
+```
+
+
+to run an application inside a K8s cluster, we need to containarize the application  
+
+## Containarize an application
+
+1. build the app:
+
+`GOOS=linux go build -o ./app .`
+
+2. create a Dockerfile
+
+```Dockerfile
+FROM debian
+COPY ./app /app
+ENTRYPOINT /app
+```
+
+3. build the image
+
+If you are running a `Minikube` cluster, you can build this image directly on the Docker engine of the Minikube node without pushing it to a registry. To build the image on Minikube:
+
+```bash
+eval $(minikube docker-env)
+docker build -t in-cluster .
+```
+
+If you are **not using Minikube**, you should build this image and push it to a registry that your Kubernetes cluster can pull from.
+
+`docker build -t in-cluster .`
+
+## RBAC Configuration
+
+If you have RBAC enabled on your cluster, use the following snippet to create role binding which will grant the default service account view permissions.
+
+`kubectl create clusterrolebinding default-view --clusterrole=view --serviceaccount=default:default`
+
+## run the image in a Pod
+
+`kubectl run --rm -i demo --image=in-cluster`
+
+and then run
+
+`kubectl logs demo`
