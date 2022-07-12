@@ -150,6 +150,43 @@ they change for each specific object (each object has its own implementation)
 
 # Closer look into `kubernetes.Clientset` structs
 
-`Clientset` contains the clients for groups. Each group has exactly one  version included in a Clientset. 
+`Clientset` contains the clients for groups. 
 
-mn 18:36
+Each group has exactly one  version included in a Clientset. 
+
+We don't use the clientset directly, because it calls the API-server for each request, we need a **cache mechanism** ==> **Informer**
+
+# Closer look into the config that we get from `config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)`
+
+This particular config is used to get the `clientset`.
+
+A config is a struct and we can also specify custom configuration:
+
+```go
+type Config struct {
+	Host string
+	APIPath string
+	ContentConfig
+	Username string
+	Password string `datapolicy:"password"`
+	BearerToken string `datapolicy:"token"`
+	BearerTokenFile string
+	Impersonate ImpersonationConfig
+	AuthProvider *clientcmdapi.AuthProviderConfig
+	AuthConfigPersister AuthProviderConfigPersister
+	ExecProvider *clientcmdapi.ExecConfig
+	TLSClientConfig
+	UserAgent string
+	DisableCompression bool
+	Transport http.RoundTripper
+	WrapTransport transport.WrapperFunc
+	QPS float32
+	Burst int
+	RateLimiter flowcontrol.RateLimiter
+	WarningHandler WarningHandler
+	Timeout time.Duration
+	Dial func(ctx context.Context, network, address string) (net.Conn, error)
+	Proxy func(*http.Request) (*url.URL, error)	
+}
+```
+
